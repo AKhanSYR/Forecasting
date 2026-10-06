@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Forecast Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #0f151c;
+    --panel: #161f29;
+    --panel-alt: #1c2732;
+    --line: #2a3742;
+    --text: #eae6dd;
+    --text-dim: #8fa0ac;
+    --amber: #e2a23b;
+    --amber-dim: #a97c34;
+    --teal: #4fa8a2;
+    --rust: #c25a3b;
+    --green: #7ba86a;
+    --purple: #9b86c9;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk', sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  header{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    flex-wrap:wrap;gap:16px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px;margin-bottom:24px;
+  }
+  header h1{
+    font-size:28px;font-weight:700;margin:0 0 6px 0;letter-spacing:-0.01em;
+    color:var(--text);
+  }
+  header p{margin:0;color:var(--text-dim);font-size:13.5px;max-width:520px;line-height:1.5;}
+  .status{text-align:right;font-size:13px;color:var(--text-dim);}
+  .status .roundnum{
+    font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:600;color:var(--amber);
+  }
+  .status .scoretally{color:var(--teal);font-weight:600;}
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.4fr 1.1fr;
+    gap:18px;
+    align-items:start;
+  }
+  @media(max-width:820px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 20px;
+  }
+  .panel-title{
+    font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;
+    color:var(--text);margin:0 0 4px 0;
+  }
+  .panel-sub{font-size:12px;color:var(--text-dim);margin:0 0 14px 0;}
+
+  canvas{max-height:290px;}
+
+  .chart-controls{
+    display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;
+  }
+  .chart-controls label{
+    display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-dim);cursor:pointer;
+  }
+  .chart-controls input[type=checkbox]{accent-color:var(--amber);cursor:pointer;}
+
+  /* ---- chat ---- */
+  .contact-banner{
+    display:flex;align-items:center;gap:10px;margin-bottom:12px;
+  }
+  .contact-banner .avatar{
+    width:34px;height:34px;border-radius:50%;background:var(--amber);color:#1a1408;
+    display:flex;align-items:center;justify-content:center;
+    font-size:13px;font-weight:700;flex-shrink:0;font-family:'Space Grotesk',sans-serif;
+  }
+  .contact-banner .names{line-height:1.3;}
+  .contact-banner .names .name{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;}
+  .contact-banner .names .role{font-size:11.5px;color:var(--text-dim);}
+
+  .topic-tags{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .topic-tag{
+    font-size:10.5px;padding:4px 10px;border-radius:20px;
+    border:1px solid var(--line);color:var(--text-dim);
+    display:flex;align-items:center;gap:5px;
+  }
+  .topic-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--line);}
+  .topic-tag.done{border-color:var(--teal);color:var(--teal);}
+  .topic-tag.done .dot{background:var(--teal);}
+
+  .chat-window{
+    background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;
+    height:270px;overflow-y:auto;padding:12px 14px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .bubble-row{display:flex;}
+  .bubble-row.user{justify-content:flex-end;}
+  .bubble-row.assistant{justify-content:flex-start;}
+  .bubble{
+    max-width:82%;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.5;
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .bubble.user{background:var(--amber-dim);color:#1a1408;border-bottom-right-radius:2px;}
+  .bubble.assistant{background:#243040;color:var(--text);border-bottom-left-radius:2px;}
+  .bubble.typing{color:var(--text-dim);font-style:normal;}
+  .chat-empty{color:var(--text-dim);font-size:12px;margin:auto;text-align:center;padding:0 20px;}
+  .chat-input-row{display:flex;gap:8px;margin-top:10px;}
+  .chat-input-row input[type=text]{
+    flex:1;background:var(--panel-alt);border:1px solid var(--line);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:9px 12px;border-radius:6px;
+  }
+  .chat-input-row input[type=text]:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .chat-input-row input:disabled{opacity:.5;}
+  .chat-send{
+    background:var(--amber);color:#1a1408;border:none;font-family:'Space Grotesk',sans-serif;
+    font-weight:600;font-size:13px;padding:0 18px;border-radius:6px;cursor:pointer;
+  }
+  .chat-send:disabled{background:var(--line);color:var(--text-dim);cursor:default;}
+
+  /* ---- forecast row ---- */
+  .forecast-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-top:16px;}
+  .f-field{display:flex;flex-direction:column;gap:5px;}
+  .f-field label{font-size:11px;color:var(--text-dim);}
+  input[type=number]{
+    background:var(--panel-alt);border:1px solid var(--line);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:15px;padding:9px 12px;
+    border-radius:6px;width:120px;
+  }
+  input[type=number]:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .btn-primary{
+    background:var(--amber);color:#1a1408;border:none;font-family:'Space Grotesk',sans-serif;
+    font-weight:600;font-size:14px;padding:10px 20px;border-radius:6px;cursor:pointer;
+  }
+  .btn-primary:hover{background:#f0af49;}
+  .btn-primary:disabled{background:var(--line);color:var(--text-dim);cursor:default;}
+  .btn-secondary{
+    background:transparent;border:1px solid var(--line);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 16px;
+    border-radius:6px;cursor:pointer;
+  }
+  .btn-secondary:hover{border-color:var(--teal);color:var(--teal);}
+  .f-error{color:var(--rust);font-size:12px;margin-top:8px;display:none;}
+  .f-error.show{display:block;}
+
+  /* ---- reveal ---- */
+  .reveal{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);display:none;}
+  .reveal.show{display:block;}
+  .reveal-stats{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;}
+  .stat{min-width:100px;}
+  .stat .k{font-size:11px;color:var(--text-dim);}
+  .stat .v{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:600;}
+  .stat .v.good{color:var(--green);}
+  .stat .v.bad{color:var(--rust);}
+  .stat .v.mid{color:var(--amber);}
+  .debrief{font-size:12.5px;line-height:1.6;color:var(--text-dim);}
+  .debrief b{color:var(--text);font-weight:600;}
+
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);}
+  th{color:var(--text-dim);font-weight:500;font-size:11px;}
+  td.num{font-family:'IBM Plex Mono',monospace;}
+  td.hit{color:var(--green);}
+  td.miss{color:var(--rust);}
+
+  .overlay{
+    position:fixed;inset:0;background:rgba(8,11,14,.82);
+    display:none;align-items:center;justify-content:center;padding:20px;z-index:10;
+  }
+  .overlay.show{display:flex;}
+  .summary-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:32px;max-width:580px;width:100%;max-height:88vh;overflow-y:auto;
+  }
+  .summary-card h2{font-size:22px;margin:0 0 6px 0;}
+  .grade{
+    font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:700;
+    color:var(--amber);line-height:1;margin:10px 0;
+  }
+  .summary-stats{display:flex;gap:22px;margin:14px 0 20px;flex-wrap:wrap;}
+  .insight{
+    background:var(--panel-alt);border-radius:8px;padding:12px 14px;margin-bottom:10px;
+    font-size:12.5px;line-height:1.55;color:var(--text-dim);
+  }
+  .insight b{color:var(--text);}
+
+  .retro-row{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);}
+  .retro-row:last-child{border-bottom:none;}
+  .retro-badge{
+    flex-shrink:0;width:64px;text-align:center;font-size:10.5px;font-weight:600;
+    padding:4px 6px;border-radius:12px;border:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .retro-badge.good{border-color:var(--green);color:var(--green);}
+  .retro-badge.bad{border-color:var(--rust);color:var(--rust);}
+  .retro-badge.mid{border-color:var(--amber);color:var(--amber);}
+  .retro-text{font-size:12px;line-height:1.55;color:var(--text-dim);}
+
+  .footnote{color:var(--text-dim);font-size:11.5px;margin-top:18px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>The Forecast Desk</h1>
+      <p>Six months, one forecast each. History is on the chart. Everything else — incentives, campaigns, competitor moves — sits with one person who tracks all three. Message them before you commit to a number.</p>
+    </div>
+    <div class="status">
+      <div>Round <span class="roundnum" id="roundLabel">1 / 6</span></div>
+      <div>Forecasting <span id="monthLabel" style="color:var(--text)">—</span></div>
+      <div class="scoretally">Avg score: <span id="avgScore">—</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <p class="panel-title">Demand history</p>
+      <div class="chart-controls">
+        <label><input type="checkbox" id="toggleMA"> 3-month moving average</label>
+        <label><input type="checkbox" id="toggleYoY"> Same month, last year</label>
+      </div>
+      <canvas id="chart"></canvas>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">Ask your contact</p>
+      <div class="contact-banner" id="contactBanner"></div>
+      <div class="topic-tags" id="topicTags"></div>
+      <div class="chat-window" id="chatWindow"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ask about this month…">
+        <button class="chat-send" id="chatSendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <p class="panel-title">Your forecast</p>
+    <p class="panel-sub" id="forecastPrompt">Give a best guess, plus a low–high range you're confident will contain the actual number.</p>
+    <div class="forecast-row">
+      <div class="f-field"><label for="lowInput">Low</label><input type="number" id="lowInput" placeholder="1300"></div>
+      <div class="f-field"><label for="bestInput">Best guess</label><input type="number" id="bestInput" placeholder="1450"></div>
+      <div class="f-field"><label for="highInput">High</label><input type="number" id="highInput" placeholder="1600"></div>
+      <button class="btn-primary" id="submitBtn">Submit forecast</button>
+      <button class="btn-secondary" id="nextBtn" style="display:none;">Next round →</button>
+    </div>
+    <div class="f-error" id="forecastError">Enter all three numbers so that low ≤ best guess ≤ high.</div>
+
+    <div class="reveal" id="reveal">
+      <div class="reveal-stats">
+        <div class="stat"><div class="k">Actual demand</div><div class="v" id="statActual">—</div></div>
+        <div class="stat"><div class="k">Best guess</div><div class="v" id="statForecast">—</div></div>
+        <div class="stat"><div class="k">Point error</div><div class="v" id="statError">—</div></div>
+        <div class="stat"><div class="k">Your range</div><div class="v" id="statRange">—</div></div>
+        <div class="stat"><div class="k">Round score</div><div class="v" id="statScore">—</div></div>
+      </div>
+      <div class="debrief" id="debrief"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <p class="panel-title">Performance log</p>
+    <table id="logTable">
+      <thead>
+        <tr><th>Month</th><th>Consulted</th><th>Forecast (range)</th><th>Actual</th><th>Error %</th><th>Covered</th><th>Score</th></tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="summary-card">
+    <p class="panel-title" style="margin-bottom:0;">Simulation complete</p>
+    <h2 id="summaryHeadline">—</h2>
+    <div class="grade" id="grade">—</div>
+    <div class="summary-stats">
+      <div class="stat"><div class="k">Avg error</div><div class="v" id="sumErr">—</div></div>
+      <div class="stat"><div class="k">Avg score</div><div class="v" id="sumScore">—</div></div>
+      <div class="stat"><div class="k">Coverage</div><div class="v" id="sumCoverage">—</div></div>
+      <div class="stat"><div class="k">Topics covered</div><div class="v" id="sumAsks">—</div></div>
+    </div>
+    <div id="insights"></div>
+    <p class="panel-title" style="margin-top:20px;">Round by round</p>
+    <p class="panel-sub">What the data actually did, versus what your forecast did about it.</p>
+    <div id="retro"></div>
+    <button class="btn-primary" id="restartBtn" style="margin-top:14px;">Run it again</button>
+    <p class="footnote">Each run generates a new demand pattern, plus new incentive, campaign, and competitor conditions — the shape of the history and the numbers both change. Team replies come from a live model call, so wording will vary.</p>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const HIST_LEN = 12;
+const ROUNDS = 6;
+const TOTAL = HIST_LEN + ROUNDS;
+
+const CONTACT = {
+  name: 'Morgan Reyes', role: 'Business Operations', initials: 'MR',
+  flavor: 'warm, quick-moving, a little informal — the kind of coworker who makes time for you between meetings'
+};
+
+const TOPICS = {
+  gov: {label:'Incentives', domain:'government incentives, rebates, subsidies, or regulatory changes',
+        keywords: /govern|incentiv|rebate|subsid|regulat|tax\s?credit|policy/i},
+  mkt: {label:'Campaigns', domain:'marketing campaigns, promotions, discounts, or product launches',
+        keywords: /market|campaign|promo|discount|launch|advertis/i},
+  comp: {label:'Competitors', domain:'competitor pricing, launches, or market share moves',
+        keywords: /compet|rival/i}
+};
+
+let state = {};
+let awaitingReply = false;
+let showMA = false;
+let showYoY = false;
+
+function detectTopics(text){
+  return Object.keys(TOPICS).filter(key => TOPICS[key].keywords.test(text));
+}
+
+function monthMeta(i){
+  const name = MONTHS[i % 12];
+  const yr = Math.floor(i / 12) + 1;
+  return `${name} Y${yr}`;
+}
+
+// ---------- demand pattern generation ----------
+function makePatternConfig(){
+  const types = ['seasonal','trend_shift','volatile'];
+  const type = types[Math.floor(Math.random()*types.length)];
+  const level = 850 + Math.random()*150;
+  const peakMonth = 9 + Math.floor(Math.random()*3);
+  const cfg = {type, level, peakMonth};
+
+  if(type==='seasonal'){
+    cfg.slope = 4 + Math.random()*4;
+    cfg.seasonAmp = 90 + Math.random()*50;
+    cfg.devStd = 16; cfg.devDecay = 0.35;
+  } else if(type==='trend_shift'){
+    cfg.slope1 = 2 + Math.random()*4;
+    const dir = Math.random()<0.5 ? 1 : -1;
+    cfg.slope2 = cfg.slope1 + dir*(7+Math.random()*8);
+    cfg.shiftMonth = 5 + Math.floor(Math.random()*4);
+    cfg.seasonAmp = 18 + Math.random()*22;
+    cfg.devStd = 20; cfg.devDecay = 0.4;
+  } else {
+    cfg.slope = 1 + Math.random()*2;
+    cfg.seasonAmp = 15 + Math.random()*18;
+    cfg.devStd = 60; cfg.devDecay = 0.55;
+  }
+
+  cfg.outlier = Math.random() < 0.55 ? {
+    month: 2 + Math.floor(Math.random()*8),
+    sign: Math.random()<0.5 ? 1 : -1,
+    mag: 140 + Math.random()*150
+  } : null;
+
+  return cfg;
+}
+
+function trendTerm(cfg, i){
+  if(cfg.type==='trend_shift'){
+    return i<=cfg.shiftMonth ? cfg.slope1*i : cfg.slope1*cfg.shiftMonth + cfg.slope2*(i-cfg.shiftMonth);
+  }
+  return cfg.slope*i;
+}
+
+function seasonTerm(cfg, i){
+  return cfg.seasonAmp*Math.cos((2*Math.PI*((i%12)-cfg.peakMonth))/12);
+}
+
+function genDeviations(cfg, n){
+  const dev=[];
+  let prev=0;
+  for(let i=0;i<n;i++){
+    const shock=(Math.random()-0.5)*2*cfg.devStd;
+    prev = cfg.devDecay*prev + shock;
+    dev.push(prev);
+  }
+  return dev;
+}
+
+function buildBasePath(cfg){
+  const dev = genDeviations(cfg, TOTAL);
+  const path = [];
+  for(let i=0;i<TOTAL;i++){
+    path.push(Math.max(80, cfg.level + trendTerm(cfg,i) + seasonTerm(cfg,i) + dev[i]));
+  }
+  return path;
+}
+
+function genHistory(cfg, basePath){
+  const arr=[];
+  for(let i=0;i<HIST_LEN;i++){
+    let val = basePath[i];
+    if(cfg.outlier && cfg.outlier.month === i) val += cfg.outlier.sign*cfg.outlier.mag;
+    arr.push({i, label:monthMeta(i), demand: Math.max(0, Math.round(val))});
+  }
+  return arr;
+}
+
+function genFactor(chance, lo, hi){
+  const active = Math.random() < chance;
+  return { active, magnitude: active ? (lo + Math.random()*(hi-lo)) : 0 };
+}
+
+function genRoundFactors(){
+  return {
+    gov: genFactor(0.45, 0.08, 0.20),
+    mkt: genFactor(0.55, 0.05, 0.18),
+    comp: genFactor(0.40, 0.05, 0.14)
+  };
+}
+
+function newGame(){
+  const cfg = makePatternConfig();
+  const basePath = buildBasePath(cfg);
+  const history = genHistory(cfg, basePath);
+  const rounds = [];
+  for(let r=0;r<ROUNDS;r++){
+    rounds.push({
+      i: HIST_LEN + r,
+      label: monthMeta(HIST_LEN + r),
+      factors: genRoundFactors(),
+      asked: {gov:false, mkt:false, comp:false},
+      chat: [],
+      low:null, best:null, high:null,
+      actual:null, submitted:false
+    });
+  }
+  state = { history, rounds, current: 0, basePath, cfg };
+  showMA = false; showYoY = false;
+  document.getElementById('toggleMA').checked = false;
+  document.getElementById('toggleYoY').checked = false;
+  renderContactBanner();
+  renderRound();
+  buildChart();
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('logBody').innerHTML = '';
+}
+
+function renderContactBanner(){
+  const box = document.getElementById('contactBanner');
+  box.innerHTML = `
+    <span class="avatar">${CONTACT.initials}</span>
+    <span class="names"><span class="name">${CONTACT.name}</span><br><span class="role">${CONTACT.role}</span></span>
+  `;
+}
+
+// ---------- fallback copy if the API call fails ----------
+function fallbackReply(round, userText){
+  const topics = detectTopics(userText);
+  if(topics.length === 0){
+    return `Hey — what did you want to know, incentives, our campaigns, or what competitors are up to?`;
+  }
+  return topics.map(key=>{
+    const f = round.factors[key];
+    if(key==='gov'){
+      return f.active
+        ? `On incentives — yes, a rebate program takes effect this month. Rough estimate is a lift of about ${Math.round(f.magnitude*100-4)}% to ${Math.round(f.magnitude*100+4)}% in demand.`
+        : `Nothing new on the incentives side this month, no programs or rebates scheduled.`;
+    }
+    if(key==='mkt'){
+      return f.active
+        ? `On campaigns — we've got one running this month. If it performs like the last one, expect something like a ${Math.round(f.magnitude*100-4)}% to ${Math.round(f.magnitude*100+4)}% lift.`
+        : `Quiet month on the campaign front, just always-on channels. Wouldn't bank on any lift there.`;
+    }
+    return f.active
+      ? `On the competitive side — worth flagging, a rival's running an aggressive push this month. I'd guess a ${Math.round(f.magnitude*100-3)}% to ${Math.round(f.magnitude*100+3)}% drag on our numbers.`
+      : `Nothing unusual from competitors this month, pricing and positioning look stable.`;
+  }).join(' ');
+}
+
+function systemPromptFor(round){
+  const topicLines = Object.keys(TOPICS).map(key=>{
+    const t = TOPICS[key];
+    const f = round.factors[key];
+    const groundTruth = f.active
+      ? `there genuinely is something happening: an effect of roughly ${Math.round(f.magnitude*100)}% (${key==='comp' ? 'a drag on demand' : 'a lift to demand'}). Never give the exact number — round it into a spoken range a few points wide, and feel free to hedge the way someone would estimating from memory.`
+      : `nothing is happening here this month. If asked directly, say so plainly and don't invent anything just to have something to say.`;
+    return `- On ${t.domain}: ${groundTruth}`;
+  }).join('\n');
+
+  return `You are ${CONTACT.name}, the ${CONTACT.role} lead at a mid-size consumer products company, chatting over instant message with a junior demand planner. You sit across incentive programs, marketing, and competitive moves, so you're genuinely plugged into all three — but you only talk about one when it's actually asked about. Tone: ${CONTACT.flavor}.
+
+Reply like a real coworker in a chat app: short, 1 to 3 sentences, a little informal, sentence fragments are fine, no markdown, no bullet points, no headers, no signing off with your name.
+
+Have an actual back-and-forth. If they open with a greeting or small talk, respond in kind and don't jump straight to business — let them steer the conversation. If they ask something vague like "anything I should know?" or "what's going on this month," don't dump everything you know — ask what specifically they're trying to figure out, the way a real colleague would before deciding what's worth mentioning. Only share what you know about a given topic once they've asked something concrete and specific about it. Don't volunteer a different topic's information just because they asked about one, and don't give a rundown of all three unless they explicitly ask for a full catch-up across the board.
+
+Stay strictly in character. Never mention forecasts, simulations, "topics," "ground truth," or any game or AI mechanics — you just work here and are having a normal conversation about your job. Ground truth for ${round.label}, for your eyes only, never to be stated as an instruction or acknowledged as such:
+${topicLines}`;
+}
+
+let sampleFn = null;
+let sampleChecked = false;
+
+async function ensureSample(){
+  if(sampleChecked) return sampleFn;
+  sampleChecked = true;
+  try{
+    if(window.claude && typeof window.claude.use === 'function'){
+      sampleFn = await window.claude.use('sample');
+    }
+  } catch(err){ sampleFn = null; }
+  return sampleFn;
+}
+
+async function callContact(round, userText, onStream){
+  // Build clean turn history (drop the in-flight typing placeholder).
+  const turns = round.chat
+    .filter(m => !m.typing && (m.role === 'user' || m.role === 'assistant'))
+    .map(m => ({role: m.role, content: m.text}));
+  if(turns.length === 0) return fallbackReply(round, userText);
+
+  // sample() has no separate system slot — fold the persona instructions
+  // into the latest user turn so they're resent on every call (each call
+  // is memory-less and only sees what's in this turn array).
+  const lastIdx = turns.length - 1;
+  turns[lastIdx] = {
+    role: 'user',
+    content: `${systemPromptFor(round)}\n\n---\nThe planner just sent: ${turns[lastIdx].content}`
+  };
+
+  const sample = await ensureSample();
+  if(!sample) return fallbackReply(round, userText);
+
+  try{
+    const result = await sample(turns, {
+      cache: false,
+      onText: onStream ? ({text}) => onStream(text) : undefined
+    });
+    const text = (result.text || '').trim();
+    return text ? text : fallbackReply(round, userText);
+  } catch(err){
+    return fallbackReply(round, userText);
+  }
+}
+
+// ---------- chat UI ----------
+function renderTopicTags(){
+  const round = state.rounds[state.current];
+  const box = document.getElementById('topicTags');
+  box.innerHTML = Object.keys(TOPICS).map(key=>{
+    const done = round.asked[key];
+    return `<span class="topic-tag${done?' done':''}"><span class="dot"></span>${TOPICS[key].label}</span>`;
+  }).join('');
+}
+
+function renderChatWindow(){
+  const round = state.rounds[state.current];
+  const win = document.getElementById('chatWindow');
+  win.innerHTML = '';
+  if(round.chat.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'chat-empty';
+    empty.textContent = `Nothing sent to ${CONTACT.name} this month yet.`;
+    win.appendChild(empty);
+  } else {
+    round.chat.forEach(m=>{
+      const row = document.createElement('div');
+      row.className = 'bubble-row ' + m.role;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble ' + m.role + (m.typing ? ' typing' : '');
+      bubble.textContent = m.text;
+      row.appendChild(bubble);
+      win.appendChild(row);
+    });
+  }
+  win.scrollTop = win.scrollHeight;
+
+  const disabled = round.submitted || awaitingReply;
+  document.getElementById('chatInput').disabled = disabled;
+  document.getElementById('chatSendBtn').disabled = disabled;
+}
+
+async function sendChatMessage(){
+  const round = state.rounds[state.current];
+  if(round.submitted || awaitingReply) return;
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text) return;
+
+  input.value = '';
+  round.chat.push({role:'user', text});
+  detectTopics(text).forEach(key => { round.asked[key] = true; });
+  renderTopicTags();
+  renderChatWindow();
+
+  awaitingReply = true;
+  const typingMsg = {role:'assistant', text:'…typing', typing:true};
+  round.chat.push(typingMsg);
+  renderChatWindow();
+
+  const reply = await callContact(round, text, (partial)=>{
+    typingMsg.text = partial;
+    renderChatWindow();
+  });
+
+  typingMsg.text = reply;
+  typingMsg.typing = false;
+  awaitingReply = false;
+  renderChatWindow();
+}
+
+// ---------- round flow ----------
+function renderRound(){
+  const r = state.rounds[state.current];
+  document.getElementById('roundLabel').textContent = `${state.current+1} / ${ROUNDS}`;
+  document.getElementById('monthLabel').textContent = r.label;
+  document.getElementById('lowInput').value = '';
+  document.getElementById('bestInput').value = '';
+  document.getElementById('highInput').value = '';
+  [ 'lowInput','bestInput','highInput' ].forEach(id=> document.getElementById(id).disabled = false);
+  document.getElementById('forecastError').classList.remove('show');
+  document.getElementById('submitBtn').style.display = 'inline-block';
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('nextBtn').style.display = 'none';
+  document.getElementById('reveal').classList.remove('show');
+
+  renderTopicTags();
+  renderChatWindow();
+  updateAvgScore();
+}
+
+function submitForecast(){
+  const r = state.rounds[state.current];
+  const low = parseFloat(document.getElementById('lowInput').value);
+  const best = parseFloat(document.getElementById('bestInput').value);
+  const high = parseFloat(document.getElementById('highInput').value);
+  const errBox = document.getElementById('forecastError');
+
+  if(isNaN(low) || isNaN(best) || isNaN(high) || low < 0 || low > best || best > high){
+    errBox.classList.add('show');
+    return;
+  }
+  errBox.classList.remove('show');
+
+  const {gov, mkt, comp} = r.factors;
+  const mult = (1+gov.magnitude*(gov.active?1:0)) * (1+mkt.magnitude*(mkt.active?1:0)) * (1-comp.magnitude*(comp.active?1:0));
+  const noise = (Math.random()-0.5)*40;
+  const actual = Math.max(0, Math.round(state.basePath[r.i]*mult + noise));
+
+  r.low = low; r.best = best; r.high = high;
+  r.actual = actual;
+  r.submitted = true;
+
+  const err = Math.abs(best - actual);
+  const pct = (err/actual)*100;
+  const pointScore = Math.max(0, Math.min(100, 100 - pct*2));
+
+  const widthPct = ((high-low)/actual)*100;
+  const covered = actual >= low && actual <= high;
+  let calScore;
+  if(covered){
+    calScore = Math.max(35, Math.min(100, 100 - widthPct*1.2));
+  } else {
+    const missDistPct = actual < low ? ((low-actual)/actual)*100 : ((actual-high)/actual)*100;
+    calScore = Math.max(0, 30 - missDistPct);
+  }
+
+  const score = Math.round(pointScore*0.7 + calScore*0.3);
+  r.pct = pct; r.widthPct = widthPct; r.covered = covered; r.score = score;
+
+  document.getElementById('statActual').textContent = actual.toLocaleString();
+  document.getElementById('statForecast').textContent = best.toLocaleString();
+  const errEl = document.getElementById('statError');
+  errEl.textContent = `${err.toLocaleString()} (${pct.toFixed(1)}%)`;
+  errEl.className = 'v ' + (pct<8?'good':pct<20?'mid':'bad');
+  const rangeEl = document.getElementById('statRange');
+  rangeEl.textContent = `${low.toLocaleString()}–${high.toLocaleString()}`;
+  rangeEl.className = 'v ' + (covered ? 'good':'bad');
+  const scoreEl = document.getElementById('statScore');
+  scoreEl.textContent = score;
+  scoreEl.className = 'v ' + (score>=80?'good':score>=50?'mid':'bad');
+
+  document.getElementById('debrief').innerHTML = buildDebrief(r);
+  document.getElementById('reveal').classList.add('show');
+
+  [ 'lowInput','bestInput','highInput' ].forEach(id=> document.getElementById(id).disabled = true);
+  document.getElementById('submitBtn').style.display = 'none';
+  document.getElementById('nextBtn').style.display = 'inline-block';
+  renderChatWindow();
+
+  addLogRow(r);
+  updateChartActual(r);
+  updateAvgScore();
+}
+
+function buildDebrief(r){
+  const parts = [];
+  const f = r.factors;
+  parts.push(f.gov.active
+    ? `<b>Government Relations</b> — the rebate went live and added about ${Math.round(f.gov.magnitude*100)}% to demand.${r.asked.gov?' You had this.':" You didn't ask, so this landed as a surprise."}`
+    : `<b>Government Relations</b> — no program ran this month.${r.asked.gov?' You had confirmed this.':''}`);
+  parts.push(f.mkt.active
+    ? `<b>Marketing</b> — the campaign ran and added about ${Math.round(f.mkt.magnitude*100)}% to demand.${r.asked.mkt?' You had this.':" You didn't ask, so this landed as a surprise."}`
+    : `<b>Marketing</b> — no campaign ran this month.${r.asked.mkt?' You had confirmed this.':''}`);
+  parts.push(f.comp.active
+    ? `<b>Competitive Intelligence</b> — a rival push pulled about ${Math.round(f.comp.magnitude*100)}% off demand.${r.asked.comp?' You had this.':" You didn't ask, so this landed as a surprise."}`
+    : `<b>Competitive Intelligence</b> — no competitor activity to speak of.${r.asked.comp?' You had confirmed this.':''}`);
+  parts.push(r.covered
+    ? `<b>Range</b> — your ${r.widthPct.toFixed(0)}% -wide range captured the actual value.`
+    : `<b>Range</b> — the actual value landed outside your range, which was ${r.widthPct.toFixed(0)}% wide.`);
+  return parts.join('<br>');
+}
+
+function addLogRow(r){
+  const consulted = Object.keys(r.asked).filter(k=>r.asked[k]).length;
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td>${r.label}</td>
+    <td class="num">${consulted} / 3</td>
+    <td class="num">${r.best.toLocaleString()} (${r.low.toLocaleString()}–${r.high.toLocaleString()})</td>
+    <td class="num">${r.actual.toLocaleString()}</td>
+    <td class="num">${r.pct.toFixed(1)}%</td>
+    <td class="num ${r.covered?'hit':'miss'}">${r.covered?'Yes':'No'}</td>
+    <td class="num">${r.score}</td>
+  `;
+  document.getElementById('logBody').appendChild(row);
+}
+
+function updateAvgScore(){
+  const done = state.rounds.filter(r=>r.submitted);
+  const el = document.getElementById('avgScore');
+  if(done.length===0){ el.textContent='—'; return; }
+  const avg = done.reduce((s,r)=>s+r.score,0)/done.length;
+  el.textContent = avg.toFixed(0);
+}
+
+function nextRound(){
+  if(state.current < ROUNDS-1){
+    state.current++;
+    renderRound();
+  } else {
+    showSummary();
+  }
+}
+
+function diagnoseRound(r){
+  const naive = state.basePath[r.i];
+  const expectedAdjPct = ((r.actual - naive) / naive) * 100;
+  const studentAdjPct = ((r.best - naive) / naive) * 100;
+  const SMALL = 6;
+
+  const activeTopics = Object.keys(TOPICS).filter(k => r.factors[k].active);
+  const missedActive = activeTopics.filter(k => !r.asked[k]);
+  const label = key => TOPICS[key].label.toLowerCase();
+
+  let category, text;
+
+  if(Math.abs(expectedAdjPct) < SMALL){
+    if(Math.abs(studentAdjPct) < SMALL){
+      category = 'good';
+      text = `Quiet round — demand tracked close to trend and your forecast stayed close to it too.`;
+    } else {
+      category = 'mid';
+      text = `Demand actually stuck close to trend this round, but your forecast moved about ${Math.abs(studentAdjPct).toFixed(0)}% away from it. Worth asking what that adjustment was based on.`;
+    }
+  } else {
+    const sameDirection = Math.sign(studentAdjPct) === Math.sign(expectedAdjPct) || Math.abs(studentAdjPct) < SMALL/2;
+    const ratio = Math.abs(studentAdjPct) / Math.abs(expectedAdjPct);
+
+    if(!sameDirection || ratio < 0.3){
+      category = 'bad';
+      const base = `Demand moved about ${expectedAdjPct.toFixed(0)}% off trend this round, but your forecast barely reflected it (${studentAdjPct.toFixed(0)}%).`;
+      text = missedActive.length
+        ? `${base} This is exactly what asking about ${missedActive.map(label).join(' and ')} would have caught.`
+        : `${base} You had asked about the right things this round — worth double-checking how you turned what you were told into a number.`;
+    } else if(ratio > 1.8){
+      category = 'mid';
+      text = `You moved your forecast ${studentAdjPct.toFixed(0)}% off trend — more than the real ${expectedAdjPct.toFixed(0)}% move warranted. Worth a gut check before swinging that far on one update.`;
+    } else {
+      category = 'good';
+      text = `You adjusted roughly in line with the real ${expectedAdjPct.toFixed(0)}% move this round. Nice read.`;
+    }
+  }
+  return {category, text};
+}
+
+function renderRetro(){
+  const box = document.getElementById('retro');
+  box.innerHTML = state.rounds.map(r=>{
+    const d = diagnoseRound(r);
+    return `<div class="retro-row">
+      <span class="retro-badge ${d.category}">${r.label}</span>
+      <span class="retro-text">${d.text}</span>
+    </div>`;
+  }).join('');
+}
+
+function showSummary(){
+  const rounds = state.rounds;
+  const avgPct = rounds.reduce((s,r)=>s+r.pct,0)/rounds.length;
+  const avgScore = rounds.reduce((s,r)=>s+r.score,0)/rounds.length;
+  const coverageCount = rounds.filter(r=>r.covered).length;
+  const avgWidth = rounds.reduce((s,r)=>s+r.widthPct,0)/rounds.length;
+  const totalAsks = rounds.reduce((s,r)=>s+Object.values(r.asked).filter(Boolean).length,0);
+  const maxAsks = rounds.length*3;
+
+  document.getElementById('sumErr').textContent = avgPct.toFixed(1)+'%';
+  document.getElementById('sumScore').textContent = avgScore.toFixed(0);
+  document.getElementById('sumCoverage').textContent = `${coverageCount} / ${rounds.length}`;
+  document.getElementById('sumAsks').textContent = `${totalAsks} / ${maxAsks}`;
+
+  let grade='F', headline='Rough quarter.';
+  if(avgScore>=90){grade='A';headline='Sharp forecasting all round.';}
+  else if(avgScore>=78){grade='B';headline='Solid, with room to tighten it up.';}
+  else if(avgScore>=60){grade='C';headline='Workable, but the misses added up.';}
+  else if(avgScore>=40){grade='D';headline='The gaps outweighed the hits.';}
+  else {grade='F';headline='This is what forecasting on history alone looks like.';}
+  document.getElementById('grade').textContent = grade;
+  document.getElementById('summaryHeadline').textContent = headline;
+
+  const consultedRounds = rounds.filter(r=>Object.values(r.asked).filter(Boolean).length>=2);
+  const skippedRounds = rounds.filter(r=>Object.values(r.asked).filter(Boolean).length<2);
+  let insightHtml = '';
+  if(consultedRounds.length && skippedRounds.length){
+    const avgC = consultedRounds.reduce((s,r)=>s+r.pct,0)/consultedRounds.length;
+    const avgS = skippedRounds.reduce((s,r)=>s+r.pct,0)/skippedRounds.length;
+    insightHtml += `<div class="insight">In rounds where you asked about at least two topics, average error was <b>${avgC.toFixed(1)}%</b>. In rounds where you asked about fewer, it was <b>${avgS.toFixed(1)}%</b>.</div>`;
+  } else if(consultedRounds.length === rounds.length){
+    insightHtml += `<div class="insight">You asked about at least two topics every round. That discipline is exactly what history-only forecasting can't give you.</div>`;
+  } else {
+    insightHtml += `<div class="insight">You mostly forecast from history alone. Your contact had information that would have closed a lot of that error.</div>`;
+  }
+  const missedSurprises = rounds.filter(r=>{
+    const f=r.factors;
+    return (f.gov.active && !r.asked.gov) || (f.mkt.active && !r.asked.mkt) || (f.comp.active && !r.asked.comp);
+  }).length;
+  insightHtml += `<div class="insight"><b>${missedSurprises}</b> of ${rounds.length} rounds had a live incentive, campaign, or competitor move you hadn't messaged anyone about before forecasting.</div>`;
+
+  insightHtml += `<div class="insight">Your ranges captured the actual value in <b>${coverageCount} of ${rounds.length}</b> rounds, averaging <b>${avgWidth.toFixed(0)}%</b> of demand wide. A wide range catches more actuals but says less — the goal is a range that's narrow enough to be useful and still usually right.</div>`;
+
+  document.getElementById('insights').innerHTML = insightHtml;
+  renderRetro();
+  document.getElementById('overlay').classList.add('show');
+}
+
+// ---------- chart ----------
+let chart;
+
+function getKnownValue(i){
+  if(i < HIST_LEN) return state.history[i].demand;
+  const r = state.rounds[i-HIST_LEN];
+  return r.submitted ? r.actual : null;
+}
+
+function computeOverlays(){
+  const ma = [];
+  const yoy = [];
+  for(let i=0;i<TOTAL;i++){
+    if(i>=2){
+      const a=getKnownValue(i), b=getKnownValue(i-1), c=getKnownValue(i-2);
+      ma.push((a!=null && b!=null && c!=null) ? Math.round((a+b+c)/3) : null);
+    } else ma.push(null);
+    yoy.push(i>=12 ? getKnownValue(i-12) : null);
+  }
+  return {ma, yoy};
+}
+
+function buildChart(){
+  const labels = state.history.map(h=>h.label).concat(state.rounds.map(r=>r.label));
+  const historyData = state.history.map(h=>h.demand).concat(Array(ROUNDS).fill(null));
+  const actualData = Array(HIST_LEN).fill(null).concat(Array(ROUNDS).fill(null));
+  const forecastData = Array(HIST_LEN).fill(null).concat(Array(ROUNDS).fill(null));
+  const {ma, yoy} = computeOverlays();
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'History', data: historyData, borderColor:'#4fa8a2', backgroundColor:'transparent', tension:.25, pointRadius:2, spanGaps:false},
+        {label:'Actual', data: actualData, borderColor:'#4fa8a2', backgroundColor:'transparent', tension:.25, pointRadius:3, spanGaps:false},
+        {label:'Your forecast', data: forecastData, borderColor:'#e2a23b', backgroundColor:'#e2a23b', showLine:false, pointRadius:4, pointStyle:'rectRot'},
+        {label:'3-mo moving avg', data: ma, borderColor:'#9b86c9', backgroundColor:'transparent', borderDash:[5,4], pointRadius:0, tension:.2, hidden: !showMA},
+        {label:'Same month last yr', data: yoy, borderColor:'#c25a3b', backgroundColor:'transparent', borderDash:[2,3], pointRadius:0, tension:.2, hidden: !showYoY}
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{ legend:{labels:{color:'#8fa0ac', font:{family:'IBM Plex Mono', size:11}}} },
+      scales:{
+        x:{ticks:{color:'#8fa0ac', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'#2a3742'}},
+        y:{ticks:{color:'#8fa0ac', font:{family:'IBM Plex Mono', size:10}}, grid:{color:'#2a3742'}, beginAtZero:false}
+      }
+    }
+  });
+  chart.data.datasets[1].data[HIST_LEN-1] = state.history[HIST_LEN-1].demand;
+}
+
+function updateChartActual(r){
+  const idx = HIST_LEN + (r.i - HIST_LEN);
+  chart.data.datasets[1].data[idx] = r.actual;
+  chart.data.datasets[2].data[idx] = r.best;
+  const {ma, yoy} = computeOverlays();
+  chart.data.datasets[3].data = ma;
+  chart.data.datasets[4].data = yoy;
+  chart.update();
+}
+
+// ---------- wire up ----------
+document.getElementById('submitBtn').addEventListener('click', submitForecast);
+document.getElementById('nextBtn').addEventListener('click', nextRound);
+document.getElementById('restartBtn').addEventListener('click', newGame);
+document.getElementById('highInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submitForecast(); });
+document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+document.getElementById('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendChatMessage(); });
+document.getElementById('toggleMA').addEventListener('change', e=>{
+  showMA = e.target.checked;
+  if(chart){ chart.data.datasets[3].hidden = !showMA; chart.update(); }
+});
+document.getElementById('toggleYoY').addEventListener('change', e=>{
+  showYoY = e.target.checked;
+  if(chart){ chart.data.datasets[4].hidden = !showYoY; chart.update(); }
+});
+
+newGame();
+</script>
+</body>
+</html>
