@@ -926,9 +926,12 @@ function checkMetrics(){
     }
     const tol = Math.max(c*0.03, key==='mape' ? 0.5 : 1);
     const ok = Math.abs(v-c) <= tol;
+    const msg = ok
+      ? `${labels[key]}: you entered <b>${v}${units[key]}</b> — that's correct.`
+      : `${labels[key]}: you entered <b>${v}${units[key]}</b> — not quite. Double-check your calculation and try again.`;
     return `<div class="metric-result-row">
       <span class="retro-badge ${ok?'good':'bad'}">${ok?'Correct':'Off'}</span>
-      <span>${labels[key]}: you entered <b>${v}${units[key]}</b>. Correct value is <b>${c.toFixed(1)}${units[key]}</b>.</span>
+      <span>${msg}</span>
     </div>`;
   }).join('');
 }
