@@ -212,6 +212,19 @@
   .retro-badge.mid{border-color:var(--amber);color:var(--amber);}
   .retro-text{font-size:12px;line-height:1.55;color:var(--text-dim);}
 
+  .metric-formulas{
+    background:var(--panel-alt);border:1px solid var(--line);border-radius:8px;
+    padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-dim);line-height:1.9;
+  }
+  .metric-formulas b{color:var(--text);}
+  .metric-inputs{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px;}
+  .metric-result-row{
+    display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);
+    font-size:12.5px;color:var(--text-dim);
+  }
+  .metric-result-row:last-child{border-bottom:none;}
+  .metric-result-row b{color:var(--text);}
+
   .footnote{color:var(--text-dim);font-size:11.5px;margin-top:18px;line-height:1.5;}
 </style>
 </head>
@@ -303,7 +316,32 @@
     <p class="panel-title" style="margin-top:20px;">Round by round</p>
     <p class="panel-sub">What the data actually did, versus what your forecast did about it.</p>
     <div id="retro"></div>
-    <button class="btn-primary" id="restartBtn" style="margin-top:14px;">Run it again</button>
+
+    <p class="panel-title" style="margin-top:20px;">Your six rounds</p>
+    <table>
+      <thead><tr><th>Month</th><th>Forecast</th><th>Actual</th></tr></thead>
+      <tbody id="summaryDataBody"></tbody>
+    </table>
+
+    <p class="panel-title" style="margin-top:20px;">Calculate your own accuracy metrics</p>
+    <p class="panel-sub">Using the forecast and actual values above, compute each metric by hand, then enter it below to check your work.</p>
+    <div class="metric-formulas">
+      <div><b>MAD</b> &nbsp;=&nbsp; average of |forecast − actual|</div>
+      <div><b>MSE</b> &nbsp;=&nbsp; average of (forecast − actual)²</div>
+      <div><b>MAPE</b> &nbsp;=&nbsp; average of ( |forecast − actual| ÷ actual ) × 100%</div>
+    </div>
+    <div class="metric-inputs">
+      <div class="f-field"><label for="madInput">MAD</label><input type="number" id="madInput" placeholder="e.g. 85"></div>
+      <div class="f-field"><label for="mseInput">MSE</label><input type="number" id="mseInput" placeholder="e.g. 9200"></div>
+      <div class="f-field"><label for="mapeInput">MAPE (%)</label><input type="number" id="mapeInput" placeholder="e.g. 6.4"></div>
+      <button class="btn-primary" id="checkMetricsBtn">Check my answers</button>
+    </div>
+    <div id="metricResults"></div>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn-primary" id="restartBtn">Run it again</button>
+      <button class="btn-secondary" id="closeSummaryBtn">Keep reviewing</button>
+    </div>
     <p class="footnote">Each run generates a new demand pattern, plus new incentive, campaign, and competitor conditions — the shape of the history and the numbers both change. Team replies come from a live model call, so wording will vary.</p>
   </div>
 </div>
@@ -852,7 +890,47 @@ function showSummary(){
 
   document.getElementById('insights').innerHTML = insightHtml;
   renderRetro();
+
+  document.getElementById('summaryDataBody').innerHTML = rounds.map(r => `
+    <tr><td>${r.label}</td><td class="num">${r.best.toLocaleString()}</td><td class="num">${r.actual.toLocaleString()}</td></tr>
+  `).join('');
+  document.getElementById('madInput').value = '';
+  document.getElementById('mseInput').value = '';
+  document.getElementById('mapeInput').value = '';
+  document.getElementById('metricResults').innerHTML = '';
+
   document.getElementById('overlay').classList.add('show');
+}
+
+function checkMetrics(){
+  const rounds = state.rounds;
+  const n = rounds.length;
+  const correct = {
+    mad: rounds.reduce((s,r)=>s+Math.abs(r.best-r.actual),0)/n,
+    mse: rounds.reduce((s,r)=>s+Math.pow(r.best-r.actual,2),0)/n,
+    mape: rounds.reduce((s,r)=>s+(Math.abs(r.best-r.actual)/r.actual*100),0)/n
+  };
+  const labels = {mad:'MAD', mse:'MSE', mape:'MAPE'};
+  const units = {mad:'', mse:'', mape:'%'};
+  const inputs = {
+    mad: parseFloat(document.getElementById('madInput').value),
+    mse: parseFloat(document.getElementById('mseInput').value),
+    mape: parseFloat(document.getElementById('mapeInput').value)
+  };
+
+  document.getElementById('metricResults').innerHTML = Object.keys(correct).map(key=>{
+    const c = correct[key];
+    const v = inputs[key];
+    if(isNaN(v)){
+      return `<div class="metric-result-row"><span class="retro-badge mid">—</span><span>${labels[key]}: enter a value to check it.</span></div>`;
+    }
+    const tol = Math.max(c*0.03, key==='mape' ? 0.5 : 1);
+    const ok = Math.abs(v-c) <= tol;
+    return `<div class="metric-result-row">
+      <span class="retro-badge ${ok?'good':'bad'}">${ok?'Correct':'Off'}</span>
+      <span>${labels[key]}: you entered <b>${v}${units[key]}</b>. Correct value is <b>${c.toFixed(1)}${units[key]}</b>.</span>
+    </div>`;
+  }).join('');
 }
 
 // ---------- chart ----------
@@ -924,6 +1002,10 @@ function updateChartActual(r){
 document.getElementById('submitBtn').addEventListener('click', submitForecast);
 document.getElementById('nextBtn').addEventListener('click', nextRound);
 document.getElementById('restartBtn').addEventListener('click', newGame);
+document.getElementById('checkMetricsBtn').addEventListener('click', checkMetrics);
+document.getElementById('closeSummaryBtn').addEventListener('click', ()=>{
+  document.getElementById('overlay').classList.remove('show');
+});
 document.getElementById('highInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submitForecast(); });
 document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
 document.getElementById('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendChatMessage(); });
